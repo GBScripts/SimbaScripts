@@ -1000,14 +1000,14 @@ begin
   if not Self.OnStart() then
     Exit;
 
-  ScriptWalker := @Self.RSW;
-
   if (not GetHouseOnHillRegion().Contains(Self.RSW.GetMyPos()))
     and not (Self.TeleportToIsland()) then
   begin
     Writeln("Not in hill region!");
     Exit;
   end;
+
+  ScriptWalker := @Self.RSW;
 
   Self.RunStartXp := XPBar.Read();
 
