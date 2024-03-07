@@ -855,9 +855,7 @@ begin
   if not Bank.IsOpen() then
     Exit(Self.LogType);
 
-  i := Ord(currLog);
-
-  for i downto 0 do
+  for i := Ord(currLog) downto 0 do
   begin
     foundBankItem.Item := Self.GetLogString(ERSLogType(i));
 
