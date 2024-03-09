@@ -47,10 +47,10 @@ type
     CurrentBirdHouse : CurrBirdhouse;
     HasRunStarted, HasRunFinished,
     ShouldTeleport, TakenRowBoat,
-    AlwaysUseBestLog, IsDisabled, TerminateOnNoLogs, Initialized : Boolean;
+    AlwaysUseBestLog, IsDisabled, NeedClockworks, TerminateOnNoLogs, Initialized : Boolean;
 
     RSW : TRSWalker;
-    ScriptIntervalTimer : TCountdown;
+    ScriptIntervalTimer, NextRunSpewTimer : TCountdown;
     VerdValleyShroom, MushMeadowShroom, HouseHillShroom : TRSObject;
     MushIndex : Int8;
     RunsCompleted : Int32;
@@ -136,7 +136,10 @@ begin
   Result += TRSBankItem.Setup("Chisel", 1, false);
   Result += TRSBankItem.Setup("Hammer", 1, false);
   Result += TRSBankItem.Setup(Self.GetLogString(Self.LogType), 4, false);
-  Result += TRSBankItem.Setup("Clockwork", 1, false);
+
+  if Self.NeedClockworks then
+    Result += TRSBankItem.Setup("Clockwork", 1, false);
+
   Result += TRSBankItem.Setup(Self.Seed, 40, false);
 end;
 
@@ -174,7 +177,8 @@ var
   i : Int32;
 begin
 
-  if Inventory.ContainsItem(Self.GetBirdhouseItem(Self.LogType)) then
+  if (Inventory.ContainsItem(Self.GetBirdhouseItem(Self.LogType)))
+  or (not Self.NeedClockworks and Inventory.ContainsItem(Self.GetLogString(Self.LogType))) then
     Exit(true);
 
   //Can't count seeds while the slot is selected.
@@ -310,7 +314,8 @@ begin
   if BirdHouseRunner.HasRunFinished then
     Exit;
 
-  if not Inventory.ContainsItem(BirdHouseRunner.GetBirdhouseItem(BirdHouseRunner.LogType)) then
+  if not (Inventory.ContainsItem(BirdHouseRunner.GetBirdhouseItem(BirdHouseRunner.LogType)))
+    and (Inventory.ContainsItem("Clockwork")) then
   begin
     BirdHouseRunner.BuildBirdHouseItem();
   end;
@@ -385,7 +390,10 @@ begin
   Self.DebugLn("Log: " + ToStr(Self.LogType));
   Self.DebugLn("Seed: " + ToStr(Self.Seed));
   Self.DebugLn("UseBestLog? : " + ToStr(Self.AlwaysUseBestLog));
+  Self.DebugLn("Need Clockworks : " + ToStr(Self.NeedClockworks));
   Self.DebugLn("Interval: " + SRL.MsToTime(Self.TaskInterval, TTimeFormat.Time_Formal));
+
+  Self.NestsLooted := 0;
 
   if Self.ScriptIntervalTimer.Length < 100 then
   begin
@@ -439,10 +447,11 @@ begin
   WaitUntil(not Minimap.IsPlayerMoving(), 50, 5000);
   Self.DebugLn("Done Moving");
 
-  if not Inventory.ContainsItem(BirdHouseRunner.GetBirdhouseItem(BirdHouseRunner.LogType)) then
-  begin
-    BirdHouseRunner.BuildBirdHouseItem();
-  end;
+  if Self.NeedClockworks then
+    if not Inventory.ContainsItem(BirdHouseRunner.GetBirdhouseItem(BirdHouseRunner.LogType)) then
+    begin
+      BirdHouseRunner.BuildBirdHouseItem();
+    end;
 
   dismantleTimeout.Init(6000);
 
@@ -592,36 +601,6 @@ begin
   Result := WaitUntil(seedCount > Inventory.CountItemStack(Self.Seed), 100, 6000);
 end;
 
-function TBirdHouseInclude.HandleBirdHouse() : Boolean;
-begin
-  //There's already a birdhouse there and should be ready for dismantling
-  //Find our current birdhouse and interact with it.
-  //Dismantle and return once there's a space.
-  if Self.DismantleBirdhouse() then
-  begin
-    Self.DebugLn("Dismantled our current birdhouse " + ToStr(Self.CurrentBirdHouse^.BirdhouseObject));
-    WaitUntil(Length(Self.GetBirdHouseSpace()) > 1, 200, 4000);
-  end;
-
-  Wait(Random(313, 523));
-
-  //Check for a space and build a birdhouse there.
-  if Self.InteractWithBirdHouseSpace() then
-  begin
-    Self.DebugLn("Built new birdhouse " + ToStr(Self.CurrentBirdHouse^.BirdhouseObject));
-  end;
-
-  Wait(Random(241, 456));
-
-  if Self.FillBirdHouse() then
-  begin
-    Self.DebugLn("Filled birdhouse " + ToStr(Self.CurrentBirdHouse^.BirdhouseObject));
-    Self.CurrentBirdHouse^.IsFilled := true;
-    Self.BirdHousesFilled += 1;
-    Result := true;
-  end;
-end;
-
 function TBirdHouseInclude.BuildBirdHouseItem() : Boolean;
 var
   birdHouseItem : TRSItem := Self.GetBirdhouseItem(Self.LogType);
@@ -662,6 +641,42 @@ begin
   end;
 end;
 
+function TBirdHouseInclude.HandleBirdHouse() : Boolean;
+begin
+  //There's already a birdhouse there and should be ready for dismantling
+  //Find our current birdhouse and interact with it.
+  //Dismantle and return once there's a space.
+  if Self.DismantleBirdhouse() then
+  begin
+    Self.DebugLn("Dismantled our current birdhouse " + ToStr(Self.CurrentBirdHouse^.BirdhouseObject));
+    WaitUntil(Length(Self.GetBirdHouseSpace()) > 1, 200, 4000);
+    if not Self.NeedClockworks
+    and WaitUntil(Inventory.ContainsItem("Clockwork"), 10, 2000) then
+    begin
+      Wait(Random(150, 241)); //Prevent 1 ticking the build and the space click
+      Self.BuildBirdHouseItem();
+    end;
+  end;
+
+  Wait(Random(313, 523));
+
+  //Check for a space and build a birdhouse there.
+  if Self.InteractWithBirdHouseSpace() then
+  begin
+    Self.DebugLn("Built new birdhouse " + ToStr(Self.CurrentBirdHouse^.BirdhouseObject));
+  end;
+
+  Wait(Random(241, 456));
+
+  if Self.FillBirdHouse() then
+  begin
+    Self.DebugLn("Filled birdhouse " + ToStr(Self.CurrentBirdHouse^.BirdhouseObject));
+    Self.CurrentBirdHouse^.IsFilled := true;
+    Self.BirdHousesFilled += 1;
+    Result := true;
+  end;
+end;
+
 function TBirdHouseInclude.GetBirdhouseFillCount() : Int32;
 var
   i : Int32;
@@ -692,7 +707,7 @@ end;
 
 function TBirdHouseInclude.GetState() : EScriptState;
 var
-  myPos : TPoint := RSW.GetMyPos();
+  myPos : TPoint := Self.RSW.GetMyPos();
   bestBHIndex : Int32 := -1;
 
 begin
@@ -702,7 +717,7 @@ begin
     Exit(EScriptState.DO_NOTHING);
   end;
 
-  if Self.GetBirdhouseFillCount() = 4 then
+    if Self.GetBirdhouseFillCount() = 4 then
   begin
     Self.DebugLn("Run finished");
     Inc(Self.RunsCompleted);
@@ -726,7 +741,7 @@ begin
     Exit(EScriptState.DO_NOTHING);
   end;
 
-  if (Self.GetNearestUnfilledBirdHouse(myPos, bestBHIndex))
+    if (Self.GetNearestUnfilledBirdHouse(myPos, bestBHIndex))
     and (bestBHIndex > -1 ) then
   begin
     Self.CurrentBirdHouse := @Self.birdHouses[bestBHIndex];
@@ -810,22 +825,26 @@ begin
 end;
 
 function TBirdHouseInclude.GetLogForHunterLevel(level : Int32) : ERSLogType;
+var
+  craftLevel : Int32 := Stats.GetLevel(ERSSkill.CRAFTING, false);
+
 begin
-  if level >= 89 then
+  Self.DebugLn("Detected hunter level: " + ToStr(level) + " detected crafting level: " + ToStr(craftLevel));
+  if (level >= 89) and (craftLevel >= 90) then
     Result := ERSLogType.REDWOOD_LOGS
-  else if level >= 74 then
+  else if (level >= 74) and (craftLevel >= 75) then
     Result := ERSLogType.MAGIC_LOGS
-  else if level >= 59 then
+  else if (level >= 59) and (craftLevel >= 60) then
     Result := ERSLogType.YEW_LOGS
-  else if level >= 49 then
+  else if (level >= 49) and (craftLevel >= 50) then
     Result := ERSLogType.MAHOGANY_LOGS
-  else if level >= 44 then
+  else if (level >= 44) and (craftLevel >= 45) then
     Result := ERSLogType.MAPLE_LOGS
-  else if level >= 34 then
+  else if (level >= 34) and (craftLevel >= 35) then
     Result := ERSLogType.TEAK_LOGS
-  else if level >= 24 then
+  else if (level >= 24) and (craftLevel >= 25) then
     Result := ERSLogType.WILLOW_LOGS
-  else if level >= 14 then
+  else if (level >= 14) and (craftLevel >= 15) then
     Result := ERSLogType.OAK_LOGS
   else
     Result := ERSLogType.REGULAR_LOGS;
@@ -870,7 +889,7 @@ end;
 function TBirdHouseInclude.WalkToIslandBank() : Boolean;
 begin
   if Self.AlwaysUseBestLog then
-    Self.SuggestedLogType := Self.GetLogForHunterLevel(Stats.GetLevel(ERSSkill.HUNTER));
+    Self.SuggestedLogType := Self.GetLogForHunterLevel(Stats.GetLevel(ERSSkill.HUNTER, false));
 
   Result := Bank.WalkOpen(RSObjects.BankChestFossilIsland);
 end;
@@ -934,18 +953,19 @@ end;
 function TBirdHouseInclude.GetReportStrings() : TStringArray;
 const
   spacingStart : string := "[";
-  spacingEnd : string := "|]";
-var
+    spacingEnd : string := "|]";
+  var
   listOfStrings : TStringArray;
   i : Int32;
 begin
   listOfStrings += spacingStart + "=================================" + spacingEnd;
   listOfStrings += "Birdhouse Include by CJ";
-  listOfStrings += spacingStart + "=================================" + spacingEnd;
+  listOfStrings += listOfStrings[0];
+  listOfStrings += "Next run in " + SRL.MsToTime(Self.ScriptIntervalTimer.TimeRemaining(), TTimeFormat.Time_Short);
   listOfStrings += "Runs Completed: " + ToStr(Self.RunsCompleted);
   listOfStrings += "XP Earned: " + ToStr(Self.TotalXPEarned);
   listOfStrings += "Nests Looted: " + ToStr(Self.NestsLooted);
-  listOfStrings += spacingStart + "=================================" + spacingEnd;
+  listOfStrings += listOfStrings[0];
 
   //Header text
   Result += listofStrings[0];
@@ -998,7 +1018,7 @@ begin
   if not Self.OnStart() then
     Exit;
 
-  if (not GetHouseOnHillRegion().Contains(Self.RSW.GetMyPos()))
+  if (not GetHouseOnHillRegion().Contains(ScriptWalker^.GetMyPos()))
     and not (Self.TeleportToIsland()) then
   begin
     Writeln("Not in hill region!");
@@ -1036,8 +1056,6 @@ begin
     end;
   end;
 
-  Self.PrintReport();
-
   //Responsible for getting them back to their initial activity
   Self.OnComplete();
   Self.HasRunFinished := false;
@@ -1052,7 +1070,13 @@ begin
 
   if not Self.ScriptIntervalTimer.IsFinished() then
   begin
-    WriteLn('Next birdhouse run in ' + SRL.MsToTime(Self.ScriptIntervalTimer.TimeRemaining(), TTimeFormat.Time_Formal_Long));
+    if (Self.NextRunSpewTimer.TimeRemaining = 0)
+        or (Self.NextRunSpewTimer.IsFinished()) then
+    begin
+      NextRunSpewTimer.Init(5 * ONE_MINUTE);
+      WriteLn('Next birdhouse run in ' + SRL.MsToTime(Self.ScriptIntervalTimer.TimeRemaining(), TTimeFormat.Time_Formal_Long));
+    end;
+
     Exit(false);
   end;
 
@@ -1067,6 +1091,7 @@ begin
     Self.TaskInterval := 50 * ONE_MINUTE;
 
   Self.ScriptIntervalTimer.Init(Self.GetNewRunInterval());
+  Self.PrintReport();
 end;
 
 function TBirdHouseInclude.WithdrawNextRun() : Boolean;
@@ -1142,13 +1167,14 @@ end;
 
 //If you don't use the GUI's TScriptForm.CreateBirdhouseRunSettings
 //Use this to set the values directly.
-procedure TBirdHouseInclude.Setup(log : ERSLogType; seedItem : TRSItem; useBestLog : Boolean = false; interval : UInt32 = (50 * ONE_MINUTE));
+procedure TBirdHouseInclude.Setup(log : ERSLogType; seedItem : TRSItem; useBestLog : Boolean = false; interval : UInt32 = (50 * ONE_MINUTE); needClockwork : Boolean = true);
 begin
   with Self do
   begin
     LogType := log;
     Seed := seedItem;
     AlwaysUseBestLog := useBestLog;
+    NeedClockworks := needClockwork;
     TaskInterval := interval;
   end;
 
@@ -1169,6 +1195,16 @@ function TScriptForm.CreateBirdhouseRunSettings(): TTabSheet;
     breaks := sender;
     checked := breaks.IsChecked();
     BirdHouseRunner.AlwaysUseBestLog := checked;
+  end;
+
+  procedure TScriptForm._NeedClockworkCheckBoxChanged(sender: TObject);
+  var
+    breaks: TCheckBox;
+    checked: Boolean;
+  begin
+    breaks := sender;
+    checked := breaks.IsChecked();
+    BirdHouseRunner.NeedClockworks := checked;
   end;
 
   procedure TScriptForm._SeedChanged(sender: TObject);
@@ -1226,7 +1262,7 @@ function TScriptForm.CreateBirdhouseRunSettings(): TTabSheet;
   end;
 
 var
-  bestLogCheckBox : TLabeledCheckBox;
+  bestLogCheckBox, needClockworks : TLabeledCheckBox;
   logTypeCombo : TLabeledCombobox;
   bar: TTrackBar;
   seedEdit, intervalEdit  : TLabeledEdit;
@@ -1247,6 +1283,7 @@ begin
     SetLeft(Round(w/3));
     SetWidth(Round(w/4));
     SetCaption('Seed:');
+    SetTooltip('The item here should be Seed not Seeds');
     SetName('bh_seed');
     SetMaxLength(17);
     Edit.setOnChange(@Self._SeedChanged);
@@ -1263,6 +1300,18 @@ begin
     SetTop(seedEdit.Edit.GetBottom());
     SetChecked(BirdHouseRunner.AlwaysUseBestLog);
     CheckBox.setOnChange(@Self._BestLogCheckBoxChanged);
+  end;
+
+  with needClockworks do
+  begin
+    Create(Result);
+    SetCaption('Need clockworks?');
+    SetTooltip('Requires you to have 4 birdhouses down already');
+    SetLeft(bestLogCheckBox.GetLeft());
+    SetTop(bestLogCheckBox.GetBottom() + TControl.AdjustToDPI(10));
+    BirdHouseRunner.NeedClockworks := true;
+    SetChecked(BirdHouseRunner.NeedClockworks);
+    CheckBox.setOnChange(@Self._NeedClockworkCheckBoxChanged);
   end;
 
   with logTypeCombo do
@@ -1307,5 +1356,3 @@ begin
     SetOnChange(@Self._BHIncludeBarOnChange);
   end;
 end;
-
-
