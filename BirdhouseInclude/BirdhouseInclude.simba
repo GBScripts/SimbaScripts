@@ -225,7 +225,7 @@ begin
   //Teak
   commonFinder.ColorClusters += [CTS2(3495271, 9, 0.12, 0.20), CTS2(6848914, 4, 0.31, 0.40), 20];
   //Maple
-  commonFinder.ColorClusters += [CTS2(2774407, 5, 1.08, 0.39), CTS2(2774923, 3, 0.01, 0.01), 20];
+  commonFinder.ColorClusters += [CTS2(2378868, 8, 0.14, 0.18), CTS2(2710661, 5, 0.08, 0.36), 20];
   //Mahogany
   commonFinder.ColorClusters += [CTS2(1065831, 3, 0.15, 1.31), CTS2(3425125, 4, 0.10, 0.33), 20];
   //Yew
