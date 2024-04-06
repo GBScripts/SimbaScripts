@@ -8,8 +8,6 @@
 {$IFNDEF SKUNK_UNIVERSAL_TRANSPORT}
   {$I Includes\WaspLib\optional\handlers\teleports\transport.simba}
 {$ENDIF}
-var
-  BHWriteDebug : Boolean := true;
 
 {$SCOPEDENUMS ON}
 type
@@ -64,6 +62,12 @@ type
 
 var
   BirdHouseRunner : TBirdHouseInclude;
+  BHWriteDebug : Boolean := true;
+  BHIncludeGUILogType : ERSLogType := ERSLogType.MAPLE_LOGS;
+  BHIncludeGUISeed : TRSItem := 'Potato seed';
+  BHIncludeGUIRunIntervalMinutes : Int32 := 51;
+  BHIncludeGUIUseBestLog : Boolean := false;
+  BHIncludeGUICraftWhileNav : Boolean := false;
 
 function TMushroom.GetMushButton() : ERSMushTreeButton;
 begin
@@ -1074,7 +1078,7 @@ begin
         or (Self.NextRunSpewTimer.IsFinished()) then
     begin
       NextRunSpewTimer.Init(5 * ONE_MINUTE);
-      WriteLn('Next birdhouse run in ' + SRL.MsToTime(Self.ScriptIntervalTimer.TimeRemaining(), TTimeFormat.Time_Formal_Long));
+      WriteLn('Next birdhouse run in ' + SRL.MsToTime(Self.ScriptIntervalTimer.TimeRemaining(), TTimeFormat.Time_Short));
     end;
 
     Exit(false);
@@ -1187,32 +1191,36 @@ end;
 function TScriptForm.CreateBirdhouseRunSettings(): TTabSheet;
   type TScriptForm = TScriptForm;
 
-  procedure TScriptForm._BestLogCheckBoxChanged(sender: TObject);
+  procedure TScriptForm._OnCheckBoxChanged(sender: TObject);
   var
-    breaks: TCheckBox;
-    checked: Boolean;
+    checkBox : TCheckBox;
+    isChecked : Boolean;
   begin
-    breaks := sender;
-    checked := breaks.IsChecked();
-    BirdHouseRunner.AlwaysUseBestLog := checked;
-  end;
-
-  procedure TScriptForm._NeedClockworkCheckBoxChanged(sender: TObject);
-  var
-    breaks: TCheckBox;
-    checked: Boolean;
-  begin
-    breaks := sender;
-    checked := breaks.IsChecked();
-    BirdHouseRunner.NeedClockworks := checked;
+    checkBox := sender;
+    isChecked := checkBox.IsChecked();
+    Writeln("Name is: ", checkBox.getName());
+    case checkBox.getName() of
+      'bh_extraclockworkcb_checkbox' : BirdHouseRunner.NeedClockworks := isChecked;
+      'bh_bestlogcb_checkbox': BirdHouseRunner.AlwaysUseBestLog := isChecked;
+    end;
   end;
 
   procedure TScriptForm._SeedChanged(sender: TObject);
   var
     seed : TEdit;
+    editText : string;
   begin
     seed := sender;
-    BirdHouseRunner.Seed := seed.getText();
+
+    editText := seed.getText();
+
+    if not editText.Contains('seed') then
+      editText += " seed";
+
+    if editText.Contains('seeds') then
+      editText := editText.Before(" ") + " seed";
+
+    BirdHouseRunner.Seed := editText;
   end;
 
   procedure TScriptForm._LogTypeChanged(sender: TObject);
@@ -1287,31 +1295,33 @@ begin
     SetName('bh_seed');
     SetMaxLength(17);
     Edit.setOnChange(@Self._SeedChanged);
-    BirdHouseRunner.Seed := 'Cabbage seed';
-    SetText('Cabbage seed');
+    BirdHouseRunner.Seed := BHIncludeGUISeed;
+    SetText(ToStr(BirdHouseRunner.Seed));
   end;
 
   with bestLogCheckBox do
   begin
     Create(Result);
+    SetName('bh_bestlogcb');
     SetCaption('Always use best log');
     SetTooltip('Will check your hunter level and change log used to match');
     SetLeft(seedEdit.GetRight() + TControl.AdjustToDPI(10));
     SetTop(seedEdit.Edit.GetBottom());
+    BirdHouseRunner.AlwaysUseBestLog := BHIncludeGUIUseBestLog;
     SetChecked(BirdHouseRunner.AlwaysUseBestLog);
-    CheckBox.setOnChange(@Self._BestLogCheckBoxChanged);
+    CheckBox.setOnChange(@Self._OnCheckBoxChanged);
   end;
 
   with needClockworks do
   begin
     Create(Result);
-    SetCaption('Need clockworks?');
-    SetTooltip('Requires you to have 4 birdhouses down already');
+    SetName('bh_extraclockworkcb');
+    SetCaption('Craft birdhouses while navigating? (Requires a clockwork in bank)');
     SetLeft(bestLogCheckBox.GetLeft());
     SetTop(bestLogCheckBox.GetBottom() + TControl.AdjustToDPI(10));
-    BirdHouseRunner.NeedClockworks := true;
+    BirdHouseRunner.NeedClockworks := BHIncludeGUICraftWhileNav;
     SetChecked(BirdHouseRunner.NeedClockworks);
-    CheckBox.setOnChange(@Self._NeedClockworkCheckBoxChanged);
+    CheckBox.setOnChange(@Self._OnCheckBoxChanged);
   end;
 
   with logTypeCombo do
@@ -1322,8 +1332,8 @@ begin
     AddItemArray(['Regular', 'Oak', 'Willow', 'Teak',
                   'Maple', 'Mahogany', 'Yew', 'Magic tree', 'Redwood']);
 
-    BirdHouseRunner.LogType := ERSLogType.MAPLE_LOGS;
-    SetItemIndex(Ord(ERSLogType.MAPLE_LOGS));
+    BirdHouseRunner.LogType := BHIncludeGUILogType;
+    SetItemIndex(Ord(BirdHouseRunner.LogType));
     Combobox.SetOnChange(@Self._LogTypeChanged);
   end;
 
@@ -1337,8 +1347,8 @@ begin
     SetTop(logTypeCombo.GetTop() + TControl.AdjustToDPI(60));
     Edit.setOnKeyPress(@Edit.NumberField);
     Edit.setOnChange(@Self._BHIncludeIntervalEditChanged);
-    BirdHouseRunner.TaskInterval := 51 * ONE_MINUTE;
-    SetText(ToStr(51));
+    BirdHouseRunner.TaskInterval := BHIncludeGUIRunIntervalMinutes * ONE_MINUTE;
+    SetText(ToStr(BHIncludeGUIRunIntervalMinutes));
   end;
 
   with bar do
@@ -1347,7 +1357,7 @@ begin
     SetName("bhi_bar_interval");
     SetMin(0);
     SetMax(120);
-    SetPosition(51);
+    SetPosition(BHIncludeGUIRunIntervalMinutes);
     setFrequency(10);
     SetWidth(TControl.AdjustToDPI(300));
     SetLeft(logTypeCombo.GetLeft());
