@@ -332,10 +332,14 @@ procedure TBirdHouseInclude.Init();
 var
   VerdValleyShroom, MushMeadowShroom, HouseHillShroom : TMushroom;
 begin
+
+  if Self.IsDisabled then
+    Exit;
+
   Writeln("Birdhouse runner init!");
   Self.RSW.SetupRegions([RSRegions.FOSSIL_ISLAND, Self.GetHouseOnHillRegion()]);
   Self.RSW.AdaptiveWalk := true;
-  Self.RSW.AdaptiveToggleDistances := Point(10, 10);
+  RSW_ADAPTIVE_SCREEN_TOGGLE_DISTANCES := Point(Random(6, 12), Random(6, 12));
   Self.RSW.OnWalkingEvent := @OnWalkEvent;
   //HideMyInfo();
 
@@ -438,10 +442,11 @@ begin
              and (SRL.FindColors(tpa, TEXT_COLOR, MainScreen.UpTextArea) > 0);
 end;
 
-function TBirdHouseInclude.DismantleBirdhouse() : Boolean;
+function TBirdHouseInclude.DismantleBirdhouse(out shouldSkip : Boolean) : Boolean;
 var
   birdhouseATPA : T2DPointArray;
-  dismantleTimeout : TCountDown;
+  dismantleTimeout, xpTimeout : TCountDown;
+  chatTitle : string;
 begin
 
   Self.DebugLn("Moving");
@@ -452,9 +457,9 @@ begin
   Self.DebugLn("Done Moving");
 
   if Self.NeedClockworks then
-    if not Inventory.ContainsItem(BirdHouseRunner.GetBirdhouseItem(BirdHouseRunner.LogType)) then
+    if not Inventory.ContainsItem(Self.GetBirdhouseItem(Self.LogType)) then
     begin
-      BirdHouseRunner.BuildBirdHouseItem();
+      Self.BuildBirdHouseItem();
     end;
 
   dismantleTimeout.Init(6000);
@@ -483,18 +488,50 @@ begin
     Mouse.Click(MOUSE_RIGHT);
     Self.DebugLn("Dismantling birdhouse");
 
-    if WaitUntil(ChooseOption.IsOpen, 100, 1200) then
+    if not WaitUntil(ChooseOption.IsOpen, 100, 1200) then
+      continue;
+
+    if not ChooseOption.Select(['mpty'], MOUSE_LEFT, false, true) then
+      continue;
+
+    xpTimeout.Init(8000);
+    while not xpTimeout.IsFinished() do
     begin
-      if ChooseOption.Select(['mpty'], MOUSE_LEFT, false, true)
-        and WaitUntil(XPBar.EarnedXP(), 100, 8000) then
+      if XPBar.EarnedXP() then
+        break;
+
+      chatTitle := Chat.GetChatTitle();
+      if chatTitle.Contains("will lose") then
       begin
-        Result := WaitUntil(Length(Self.GetBirdHouseSpace()) > 1, 200, 2000);
-        if Result then
+        //Close the last one because it'll break other interactions.
+        if Self.BirdHousesFilled = 3 then
         begin
-          Self.DebugLn("Cleared this birdhouse");
-          Exit(Result);
+          Wait(Random(327, 744)); //Looks more believable
+          while chatTitle.Contains("will lose") do
+          begin
+            chatTitle := Chat.GetChatTitle();
+
+            if SRL.Dice(15) then
+              Chat.ClickOption("leave it be", 0, [CHAT_COLOR_BLACK])
+            else
+              PressKey(VK_ESCAPE);
+
+            Wait(Random(137, 352));
+          end;
         end;
+
+        shouldSkip := true;
+        Exit(false);
       end;
+
+      Wait(120);
+    end;
+
+    Result := WaitUntil(Length(Self.GetBirdHouseSpace()) > 1, 200, 2000);
+    if Result then
+    begin
+      Self.DebugLn("Cleared this birdhouse");
+      Exit(Result);
     end;
   end;
 end;
@@ -611,12 +648,17 @@ var
 
 begin
   if not Inventory.ContainsItem('Clockwork')
-    and not Inventory.ContainsItem(birdHouseItem) then
+  and not Inventory.ContainsItem(birdHouseItem) then
   begin
-    TerminateScript('We lack the items to keep birdhousing');
+    Self.DebugLn("No clockwork or birdhouse in inventory, we can't continue!");
+    Self.DebugLn("Ending run!");
+    Self.BirdHousesFilled := 4;
+    Exit(false);
   end;
 
-  if not Inventory.ContainsItem(birdHouseItem) then
+  Result := Inventory.ContainsItem(birdHouseItem);
+
+  if not Result then
   begin
     Self.DebugLn("No birdhouse in inventory, making one");
 
@@ -646,11 +688,14 @@ begin
 end;
 
 function TBirdHouseInclude.HandleBirdHouse() : Boolean;
+var
+  shouldSkip : Boolean;
 begin
   //There's already a birdhouse there and should be ready for dismantling
   //Find our current birdhouse and interact with it.
   //Dismantle and return once there's a space.
-  if Self.DismantleBirdhouse() then
+
+  if Self.DismantleBirdhouse(shouldSkip) then
   begin
     Self.DebugLn("Dismantled our current birdhouse " + ToStr(Self.CurrentBirdHouse^.BirdhouseObject));
     WaitUntil(Length(Self.GetBirdHouseSpace()) > 1, 200, 4000);
@@ -658,8 +703,17 @@ begin
     and WaitUntil(Inventory.ContainsItem("Clockwork"), 10, 2000) then
     begin
       Wait(Random(150, 241)); //Prevent 1 ticking the build and the space click
-      Self.BuildBirdHouseItem();
+      if not Self.BuildBirdHouseItem() then
+        Exit;
     end;
+  end;
+
+  if shouldSkip then
+  begin
+    Writeln("Too early for this birdhouse, skipping.");
+    Self.CurrentBirdHouse^.IsFilled := true;
+    Self.BirdHousesFilled += 1;
+    Exit;
   end;
 
   Wait(Random(313, 523));
@@ -721,7 +775,7 @@ begin
     Exit(EScriptState.DO_NOTHING);
   end;
 
-    if Self.GetBirdhouseFillCount() = 4 then
+  if (Self.BirdHousesFilled >= 4) then
   begin
     Self.DebugLn("Run finished");
     Inc(Self.RunsCompleted);
@@ -745,8 +799,8 @@ begin
     Exit(EScriptState.DO_NOTHING);
   end;
 
-    if (Self.GetNearestUnfilledBirdHouse(myPos, bestBHIndex))
-    and (bestBHIndex > -1 ) then
+  if (Self.GetNearestUnfilledBirdHouse(myPos, bestBHIndex))
+  and (bestBHIndex > -1 ) then
   begin
     Self.CurrentBirdHouse := @Self.birdHouses[bestBHIndex];
 
@@ -1198,7 +1252,6 @@ function TScriptForm.CreateBirdhouseRunSettings(): TTabSheet;
   begin
     checkBox := sender;
     isChecked := checkBox.IsChecked();
-    Writeln("Name is: ", checkBox.getName());
     case checkBox.getName() of
       'bh_extraclockworkcb_checkbox' : BirdHouseRunner.NeedClockworks := isChecked;
       'bh_bestlogcb_checkbox': BirdHouseRunner.AlwaysUseBestLog := isChecked;
