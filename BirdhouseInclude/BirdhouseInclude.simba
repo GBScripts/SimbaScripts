@@ -879,7 +879,11 @@ end;
 
 function TBirdHouseInclude.HandleNavigating() : Boolean;
 begin
-  Result := Self.RSW.WebWalk(Self.CurrentBirdHouse^.BirdhouseObject.Coordinates[0]);
+  Self.RSW.ScreenWalk := false;
+  Self.RSW.AdaptiveWalk := false;
+  Result := Self.RSW.WebWalk(Self.CurrentBirdHouse^.BirdhouseObject.Coordinates[0], 10);
+  Self.RSW.ScreenWalk := true;
+  Self.RSW.AdaptiveWalk := true;
 end;
 
 function TBirdHouseInclude.GetLogForHunterLevel(level : Int32) : ERSLogType;
@@ -1073,6 +1077,7 @@ begin
     Self.Init();
   end;
 
+  Self.DebugLn("Calling OnStart Method");
   if not Self.OnStart() then
     Exit;
 
@@ -1115,6 +1120,7 @@ begin
   end;
 
   //Responsible for getting them back to their initial activity
+  Self.DebugLn("Calling OnComplete Method");
   Self.OnComplete();
   Self.HasRunFinished := false;
   ScriptWalker := CachedWalker;
