@@ -37,7 +37,7 @@ type
     LogType, SuggestedLogType : ERSLogType;
     Seed : TRSItem;
     BirdHousesFilled : Int8;
-    VerdValleySouthBirdHouse, VerdValleyNorthBirdHouse, MushMeadowBirdhouse, TarBirdHouse : TBirdhouse;
+    //VerdValleySouthBirdHouse, VerdValleyNorthBirdHouse, MushMeadowBirdhouse, TarBirdHouse : TBirdhouse;
     CampRowBoat : TRSObject;
 
     TaskInterval : Uint32;
@@ -47,7 +47,7 @@ type
     ShouldTeleport, TakenRowBoat,
     AlwaysUseBestLog, IsDisabled, NeedClockworks, TerminateOnNoLogs, Initialized : Boolean;
 
-    RSW : TRSWalker;
+    //RSW : TRSWalker;
     ScriptIntervalTimer, NextRunSpewTimer : TCountdown;
     VerdValleyShroom, MushMeadowShroom, HouseHillShroom : TRSObject;
     MushIndex : Int8;
@@ -220,6 +220,9 @@ var
   commonFinder : TRSObjectFinder;
 
 begin
+
+  SetLength(Self.birdHouses, 4);
+
   //Regular
   commonFinder.ColorClusters += [CTS2(1789275, 5, 0.10, 0.69), CTS2(6201021, 8, 0.03, 1.40), 20];
   //Oak
@@ -276,10 +279,10 @@ begin
     Filter.MinimapDot := false;
   end;
 
-  Self.VerdValleyNorthBirdHouse := [VVBHN, false];
-  Self.VerdValleySouthBirdHouse := [VVBHS, false];
-  Self.MushMeadowBirdhouse := [MMBHN, false];
-  Self.TarBirdHouse := [TARBH, false];
+  Self.birdHouses[0] := [VVBHN, false];
+  Self.birdHouses[1] := [VVBHS, false];
+  Self.birdHouses[2] := [MMBHN, false];
+  Self.birdHouses[3] := [TARBH, false];
 end;
 
 function TBirdHouseInclude.GetHouseOnHillRegion() : TBox;
@@ -312,13 +315,13 @@ end;
 procedure OnWalkEvent(Sender: PRSWalker; Position: TPoint; Destination: TPoint);
 begin
 
-  if Sender <> @BirdhouseRunner.RSW then
-    Exit;
+  //if Sender <> @BirdhouseRunner.RSW then
+    //Exit;
 
   if BirdHouseRunner.HasRunFinished then
     Exit;
 
-  if not (Inventory.ContainsItem(BirdHouseRunner.GetBirdhouseItem(BirdHouseRunner.LogType)))
+    if not (Inventory.ContainsItem(BirdHouseRunner.GetBirdhouseItem(BirdHouseRunner.LogType)))
     and (Inventory.ContainsItem("Clockwork")) then
   begin
     BirdHouseRunner.BuildBirdHouseItem();
@@ -337,10 +340,22 @@ begin
     Exit;
 
   Writeln("Birdhouse runner init!");
-  Self.RSW.SetupRegions([RSRegions.FOSSIL_ISLAND, Self.GetHouseOnHillRegion()]);
-  Self.RSW.AdaptiveWalk := true;
-  RSW_ADAPTIVE_SCREEN_TOGGLE_DISTANCES := Point(Random(6, 12), Random(6, 12));
-  Self.RSW.OnWalkingEvent := @OnWalkEvent;
+
+  if ScriptWalker = nil then
+  begin
+    ScriptWalker^.SetupRegions([RSRegions.FOSSIL_ISLAND, Self.GetHouseOnHillRegion()]);
+    ScriptWAlker^.AdaptiveWalk := true;
+    RSW_ADAPTIVE_SCREEN_TOGGLE_DISTANCES := Point(Random(6, 12), Random(6, 12));
+    ScriptWalker^.OnWalkingEvent := @OnWalkEvent;
+  end
+  else
+  begin
+    if ScriptWalker^.Regions.Find(RSRegions.FOSSIL_ISLAND) = -1 then
+      ScriptWalker^.AddRegion(RSRegions.FOSSIL_ISLAND);
+  end;
+
+  ScriptWalker^.AddRegion(Self.GetHouseOnHillRegion);
+
   //HideMyInfo();
 
   with HouseHillShroom.Mushroom do
@@ -391,7 +406,7 @@ begin
   Self.ShouldTeleport := true;
 
   SetupBirdHouses();
-  Self.birdHouses := [Self.VerdValleyNorthBirdHouse, Self.VerdValleySouthBirdHouse, Self.MushMeadowBirdhouse, Self.TarBirdHouse];
+  //Self.birdHouses := [Self.VerdValleyNorthBirdHouse, Self.VerdValleySouthBirdHouse, Self.MushMeadowBirdhouse, Self.TarBirdHouse];
   Self.Initialized := true;
 
   Self.DebugLn("Birdhouse Run initialized");
@@ -450,7 +465,7 @@ var
 begin
 
   Self.DebugLn("Moving");
-  if not WaitUntil(Self.RSW.WalkBlind(Self.CurrentBirdHouse^.BirdhouseObject.Coordinates[0], 20), 150, 5000) then
+  if not WaitUntil(ScriptWalker^.WalkBlind(Self.CurrentBirdHouse^.BirdhouseObject.Coordinates[0], 20), 150, 5000) then
     Exit;
 
   WaitUntil(not Minimap.IsPlayerMoving(), 50, 5000);
@@ -765,7 +780,7 @@ end;
 
 function TBirdHouseInclude.GetState() : EScriptState;
 var
-  myPos : TPoint := Self.RSW.GetMyPos();
+  myPos : TPoint := ScriptWalker^.GetMyPos();
   bestBHIndex : Int32 := -1;
 
 begin
@@ -864,7 +879,7 @@ begin
 
   mushroomBox := Box(Self.Mushrooms[indexToUse].Mushroom.Coordinates[0], 100, 100);
 
-  if WaitUntil(not mushroomBox.Contains(Self.RSW.GetMyPos()), 400, 6000) then
+  if WaitUntil(not mushroomBox.Contains(ScriptWalker^.GetMyPos()), 400, 6000) then
   begin
     Self.DebugLn("Successfully teleported to mushroom");
     Result := true;
@@ -879,11 +894,11 @@ end;
 
 function TBirdHouseInclude.HandleNavigating() : Boolean;
 begin
-  Self.RSW.ScreenWalk := false;
-  Self.RSW.AdaptiveWalk := false;
-  Result := Self.RSW.WebWalk(Self.CurrentBirdHouse^.BirdhouseObject.Coordinates[0], 10);
-  Self.RSW.ScreenWalk := true;
-  Self.RSW.AdaptiveWalk := true;
+  ScriptWalker^.ScreenWalk := false;
+  ScriptWalker^.AdaptiveWalk := false;
+  Result := ScriptWalker^.WebWalk(Self.CurrentBirdHouse^.BirdhouseObject.Coordinates[0], 10);
+  ScriptWalker^.ScreenWalk := true;
+  ScriptWalker^.AdaptiveWalk := true;
 end;
 
 function TBirdHouseInclude.GetLogForHunterLevel(level : Int32) : ERSLogType;
@@ -1065,13 +1080,20 @@ begin
   Self.DisplayReport();
 end;
 
+procedure TBirdHouseInclude.ApplyWalkerConfig();
+begin
+  ScriptWalker^.AdaptiveWalk := true;
+  RSW_ADAPTIVE_SCREEN_TOGGLE_DISTANCES := Point(Random(6, 12), Random(6, 12));
+  ScriptWalker^.OnWalkingEvent := @OnWalkEvent;
+end;
+
 procedure TBirdHouseInclude.BirdhouseRun();
 var
-  CachedWalker : PRSWalker;
+  cachedOnWalkingEvent : TRSWalker_OnWalkEvent;
+  cachedAdaptiveWalk : Boolean;
+  cachedAdaptiveToggleDist : TPoint;
 
 begin
-  CachedWalker := ScriptWalker;
-
   if not Self.Initialized then
   begin
     Self.Init();
@@ -1088,7 +1110,15 @@ begin
     Exit;
   end;
 
-  ScriptWalker := @Self.RSW;
+  if @ScriptWalker^.OnWalkingEvent <> nil then
+    cachedOnWalkingEvent := @ScriptWalker^.OnWalkEvent;
+
+  cachedAdaptiveWalk := ScriptWalker^.AdaptiveWalk;
+  cachedAdaptiveToggleDist := RSW_ADAPTIVE_SCREEN_TOGGLE_DISTANCES;
+
+  Self.ApplyWalkerConfig();
+
+  //ScriptWalker := @Self.RSW;
 
   Self.RunStartXp := XPBar.Read();
 
@@ -1122,8 +1152,18 @@ begin
   //Responsible for getting them back to their initial activity
   Self.DebugLn("Calling OnComplete Method");
   Self.OnComplete();
+
+  if @cachedOnWalkingEvent <> nil then
+    ScriptWalker^.OnWalkingEvent := @cachedOnWalkingEvent
+  else
+    ScriptWalker^.OnWalkingEvent := nil;
+
+
+  RSW_ADAPTIVE_SCREEN_TOGGLE_DISTANCES := cachedAdaptiveToggleDist;
+  ScriptWAlker^.AdaptiveWalk := cachedAdaptiveWalk;
+
   Self.HasRunFinished := false;
-  ScriptWalker := CachedWalker;
+  //ScriptWalker := CachedWalker;
 end;
 
 function TBirdHouseInclude.CanDoBirdHouseRun() : Boolean;
