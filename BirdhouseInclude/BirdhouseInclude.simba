@@ -37,14 +37,13 @@ type
     LogType, SuggestedLogType : ERSLogType;
     Seed : TRSItem;
     BirdHousesFilled : Int8;
-    VerdValleySouthBirdHouse, VerdValleyNorthBirdHouse, MushMeadowBirdhouse, TarBirdHouse : TBirdhouse;
-    CampRowBoat : TRSObject;
+    //VerdValleySouthBirdHouse, VerdValleyNorthBirdHouse, MushMeadowBirdhouse, TarBirdHouse : TBirdhouse;
 
     TaskInterval : Uint32;
 
     CurrentBirdHouse : CurrBirdhouse;
     HasRunStarted, HasRunFinished,
-    ShouldTeleport, TakenRowBoat,
+    ShouldTeleport,
     AlwaysUseBestLog, IsDisabled, NeedClockworks, TerminateOnNoLogs, Initialized : Boolean;
 
     RSW : TRSWalker;
@@ -220,6 +219,9 @@ var
   commonFinder : TRSObjectFinder;
 
 begin
+
+  SetLength(Self.birdHouses, 4);
+
   //Regular
   commonFinder.ColorClusters += [CTS2(1789275, 5, 0.10, 0.69), CTS2(6201021, 8, 0.03, 1.40), 20];
   //Oak
@@ -276,10 +278,10 @@ begin
     Filter.MinimapDot := false;
   end;
 
-  Self.VerdValleyNorthBirdHouse := [VVBHN, false];
-  Self.VerdValleySouthBirdHouse := [VVBHS, false];
-  Self.MushMeadowBirdhouse := [MMBHN, false];
-  Self.TarBirdHouse := [TARBH, false];
+  Self.birdHouses[0] := [VVBHN, false];
+  Self.birdHouses[1] := [VVBHS, false];
+  Self.birdHouses[2] := [MMBHN, false];
+  Self.birdHouses[3] := [TARBH, false];
 end;
 
 function TBirdHouseInclude.GetHouseOnHillRegion() : TBox;
@@ -318,7 +320,7 @@ begin
   if BirdHouseRunner.HasRunFinished then
     Exit;
 
-  if not (Inventory.ContainsItem(BirdHouseRunner.GetBirdhouseItem(BirdHouseRunner.LogType)))
+    if not (Inventory.ContainsItem(BirdHouseRunner.GetBirdhouseItem(BirdHouseRunner.LogType)))
     and (Inventory.ContainsItem("Clockwork")) then
   begin
     BirdHouseRunner.BuildBirdHouseItem();
@@ -373,14 +375,6 @@ begin
     Finder.ColorClusters += [CTS2(3233415, 13, 0.19, 0.65), CTS2(5605773, 38, 0.05, 0.59), 30];
   end;
 
-  with Self.CampRowBoat do
-  begin
-    Setup(2.5, 3, [[9295, 1068]]);
-    SetupUpText(['Travel']);
-    Finder.Colors += CTS2(6190723, 1, 0.01, 0.01);
-    Finder.Colors += CTS2(3819600, 13, 0.09, 0.20);
-  end;
-
   HouseHillShroom.location := ERSMushroomLocation.HILL_HOUSE;
   VerdValleyShroom.location := ERSMushroomLocation.VERD_VALLEY;
   MushMeadowShroom.location := ERSMushroomLocation.SHROOM_MEADOW;
@@ -390,8 +384,7 @@ begin
 
   Self.ShouldTeleport := true;
 
-  SetupBirdHouses();
-  Self.birdHouses := [Self.VerdValleyNorthBirdHouse, Self.VerdValleySouthBirdHouse, Self.MushMeadowBirdhouse, Self.TarBirdHouse];
+  Self.SetupBirdHouses();
   Self.Initialized := true;
 
   Self.DebugLn("Birdhouse Run initialized");
@@ -755,7 +748,6 @@ begin
   Self.BirdHousesFilled := 0;
   Self.CurrentBirdHouse := nil;
   Self.ShouldTeleport := true;
-  Self.TakenRowBoat := false;
 
   for i := 0 to High(Self.birdHouses) do
   begin
