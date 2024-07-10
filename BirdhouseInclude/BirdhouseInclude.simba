@@ -320,7 +320,7 @@ begin
   if BirdHouseRunner.HasRunFinished then
     Exit;
 
-    if not (Inventory.ContainsItem(BirdHouseRunner.GetBirdhouseItem(BirdHouseRunner.LogType)))
+  if not (Inventory.ContainsItem(BirdHouseRunner.GetBirdhouseItem(BirdHouseRunner.LogType)))
     and (Inventory.ContainsItem("Clockwork")) then
   begin
     BirdHouseRunner.BuildBirdHouseItem();
@@ -386,6 +386,8 @@ begin
 
   Self.SetupBirdHouses();
   Self.Initialized := true;
+
+  Self.Seed := ToStr(Self.Seed).Replace("Barely", "Barley", [rfIgnoreCase]).Before(" ") + " seed";
 
   Self.DebugLn("Birdhouse Run initialized");
   Self.DebugLn("Log: " + ToStr(Self.LogType));
@@ -1239,6 +1241,13 @@ begin
   Writeln("SETUP birdhouse run in: ", SRL.MsToTime(Self.ScriptIntervalTimer.TimeRemaining(), TTimeFormat.Time_Formal_Long));
 end;
 
+//Weird name because it'll likely get used as a regular formutil at some point
+procedure TComponent.CJTextField({$H-}sender: TObject;{$H+} var key: char);
+begin
+  if not (key in ['A'..'Z', 'a'..'z', #8]) then
+    key := #0;
+end;
+
 //If you like GUIs this will set up a tab in your GUI.
 function TScriptForm.CreateBirdhouseRunSettings(): TTabSheet;
   type TScriptForm = TScriptForm;
@@ -1259,19 +1268,9 @@ function TScriptForm.CreateBirdhouseRunSettings(): TTabSheet;
   procedure TScriptForm._SeedChanged(sender: TObject);
   var
     seed : TEdit;
-    editText : string;
   begin
     seed := sender;
-
-    editText := seed.getText();
-
-    if not editText.Contains('seed') then
-      editText += " seed";
-
-    if editText.Contains('seeds') then
-      editText := editText.Before(" ") + " seed";
-
-    BirdHouseRunner.Seed := editText;
+    BirdHouseRunner.Seed := seed.getText();
   end;
 
   procedure TScriptForm._LogTypeChanged(sender: TObject);
@@ -1340,13 +1339,14 @@ begin
   begin
     Create(Result);
     SetLeft(Round(w/3));
-    SetWidth(Round(w/4));
-    SetCaption('Seed:');
-    SetTooltip('The item here should be Seed not Seeds');
+    SetWidth(250);
+    SetCaption("Seed: just the name like potato or cabbage");
+    SetTooltip("Just the name of the seed don't include the word seed!");
     SetName('bh_seed');
-    SetMaxLength(17);
+    SetMaxLength(30);
+    BirdHouseRunner.Seed := ToStr(BHIncludeGUISeed).Replace("Barely", "Barley", [rfIgnoreCase]).Before(" ");
     Edit.setOnChange(@Self._SeedChanged);
-    BirdHouseRunner.Seed := BHIncludeGUISeed;
+    Edit.setOnKeyPress(@Edit.CJTextField);
     SetText(ToStr(BirdHouseRunner.Seed));
   end;
 
