@@ -705,7 +705,7 @@ begin
 
   if shouldSkip then
   begin
-    Writeln("Too early for this birdhouse, skipping.");
+    Self.DebugLn("Too early for this birdhouse, skipping.");
     Self.CurrentBirdHouse^.IsFilled := true;
     Self.BirdHousesFilled += 1;
     Exit;
@@ -871,11 +871,79 @@ begin
   end;
 end;
 
+function TBirdHouseInclude.HandleCave : Boolean;
+const
+  CAVE_FLOOR_COL : TCTS2Color := CTS2(4474118, 3, 0.30, 5.83);
+  ROPE_COL : TCTS2Color := CTS2(6717077, 11, 0.09, 0.47);
+var
+  tpa : TPointArray;
+  ropeClicked : Boolean;
+
+begin
+  if SRL.FindColors(tpa, CAVE_FLOOR_COL, Mainscreen.Bounds()) < 1000 then
+  begin
+    Writeln("Not in cave!");
+    Exit(true);
+  end;
+
+  for 0 to 5 do
+  begin
+    if SRL.FindColors(tpa, ROPE_COL, Mainscreen.Bounds()) < 1 then
+    begin
+      Antiban.RandomRotate();
+      continue;
+    end;
+
+    tpa := tpa.Cluster(5).Biggest();
+
+    Mouse.Move(tpa);
+    if not Mainscreen.IsUpText(['up', 'xit' ]) then
+    begin
+      Antiban.RandomRotate();
+      continue;
+    end;
+
+    Mouse.Click(MOUSE_LEFT);
+    if ropeClicked := Mainscreen.DidRedClick(300) then
+      break;
+  end;
+
+  if not ropeClicked then
+    Exit(false);
+
+  Result := WaitUntil(SRL.CountColor(CAVE_FLOOR_COL, Mainscreen.Bounds()) < 1000, Random(250, 600), 10000);
+end;
+
 function TBirdHouseInclude.HandleNavigating() : Boolean;
 begin
   Self.RSW.ScreenWalk := false;
   Self.RSW.AdaptiveWalk := false;
-  Result := Self.RSW.WebWalk(Self.CurrentBirdHouse^.BirdhouseObject.Coordinates[0], 10);
+
+  try
+    if not Self.RSW.WebWalk(Self.CurrentBirdHouse^.BirdhouseObject.Coordinates[0], 10) then
+    begin
+      Self.DebugLn("We may have entered the cave. Trying to handle it...");
+      if not HandleCave() then
+      begin
+        Self.DebugLn("Couldn't recover. Terminating.");
+        TerminateScript();
+      end
+      else
+        Self.DebugLn("Recovered!");
+    end;
+  except
+    begin
+      Self.DebugLn("Web walker caused an exception, may have entered the cave. Trying to handle it...");
+      if not HandleCave() then
+      begin
+        Self.DebugLn("Couldn't recover. Terminating.");
+        TerminateScript();
+      end
+      else
+        Self.DebugLn("Recovered!");
+    end;
+  end;
+
   Self.RSW.ScreenWalk := true;
   Self.RSW.AdaptiveWalk := true;
 end;
