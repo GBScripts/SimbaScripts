@@ -1349,48 +1349,26 @@ function TScriptForm.CreateBirdhouseRunSettings(): TTabSheet;
     BirdHouseRunner.LogType := ERSLogType(comboBox.getItemIndex());
   end;
 
-  procedure TScriptForm._BHIncludeIntervalEditChanged(sender: TObject);
+  procedure TScriptForm._BHIncludeOnRadioChanged(sender: TObject);
   var
-    edit : TEdit;
-    str : string;
-    bar : TTrackBar;
-    value : UInt64;
+    radio : TRadioButton;
   begin
-    edit := sender;
-    str := edit.getText();
-
-    if (str.Len() < 1) then
-      str := '0';
-
-    value := StrToUInt64(str);
-
-    if value > 120 then
-      value := 120;
-
-    bar := TScriptForm.Form.GetChild("bhi_bar_interval");
-    if bar <> nil then
-      bar.setPosition(value);
-
-    BirdHouseRunner.TaskInterval := value * ONE_MINUTE;
+    radio := sender;
+    case radio.getName() of
+      'bh_nowradio' : BirdHouseRunner.TaskInterval := 0;
+      'bh_laterradio' : BirdHouseRunner.TaskInterval := BirdHouseRunner.TaskInterval := 50 * ONE_MINUTE;
+    end;
   end;
 
-  procedure TScriptForm._BHIncludeBarOnChange(sender: TObject);
-  var
-    bar: TTrackBar;
-    edit: TEdit;
-    value: Uint64;
-  begin
-    bar := sender;
-    edit := TScriptForm.Form.GetChild('bhi_interval_edit');
-    value := bar.getPosition();
-    BirdhouseRunner.TaskInterval := value * ONE_MINUTE;
-    edit.SetText(ToStr(value));
-  end;
-
+const
+  H_SPACING : Int32 := 50;
 var
   bestLogCheckBox, needClockworks : TLabeledCheckBox;
   logTypeCombo : TLabeledCombobox;
+  runRadioGroup: TPanel;
+  nowRadio, laterRadio: TRadioButton;
   bar: TTrackBar;
+  intervalLabel : TLabel;
   seedEdit, intervalEdit  : TLabeledEdit;
   fullWidth, w, space, y: Int32;
 
@@ -1403,10 +1381,25 @@ begin
   w := fullWidth - (space * 2);
   y := Floor(Self.Size.Y/6);
 
+  with logTypeCombo do
+  begin
+    Create(Result);
+    SetCaption('Log type to use:');
+    SetStyle(csDropDownList);
+    AddItemArray(['Regular', 'Oak', 'Willow', 'Teak',
+                  'Maple', 'Mahogany', 'Yew', 'Magic tree', 'Redwood']);
+    SetLeft(TControl.AdjustToDPI(H_SPACING));
+    SetTop(TControl.AdjustToDPI(15));
+    BirdHouseRunner.LogType := BHIncludeGUILogType;
+    SetItemIndex(Ord(BirdHouseRunner.LogType));
+    Combobox.SetOnChange(@Self._LogTypeChanged);
+  end;
+
   with seedEdit do
   begin
     Create(Result);
-    SetLeft(Round(w/3));
+    SetTop(logTypeCOmbo.GetTop());
+    SetLeft(logTypeCombo.GetRight() + TControl.AdjustToDPI(H_SPACING));
     SetWidth(250);
     SetCaption("Seed: just the name like potato or cabbage");
     SetTooltip("Just the name of the seed don't include the word seed!");
@@ -1418,70 +1411,83 @@ begin
     SetText(ToStr(BirdHouseRunner.Seed));
   end;
 
+  with needClockworks do
+  begin
+    Create(Result);
+    SetName('bh_extraclockworkcb');
+    SetCaption(#13#10 + "Craft birdhouses while navigating?" + #13#10 + "(Requires a clockwork in bank)");
+    SetHeight(needClockworks.GetHeight() + TControl.AdjustToDPI(30));
+    BirdHouseRunner.NeedClockworks := BHIncludeGUICraftWhileNav;
+    SetChecked(BirdHouseRunner.NeedClockworks);
+    CheckBox.setOnChange(@Self._OnCheckBoxChanged);
+  end;
+
   with bestLogCheckBox do
   begin
     Create(Result);
     SetName('bh_bestlogcb');
     SetCaption('Always use best log');
     SetTooltip('Will check your hunter level and change log used to match');
-    SetLeft(seedEdit.GetRight() + TControl.AdjustToDPI(10));
-    SetTop(seedEdit.Edit.GetBottom());
+    SetLeft(seedEdit.GetRight() + TControl.AdjustToDPI(H_SPACING));
+    SetTop(seedEdit.Edit.GetBottom() + TControl.AdjustToDPI(9));
     BirdHouseRunner.AlwaysUseBestLog := BHIncludeGUIUseBestLog;
     SetChecked(BirdHouseRunner.AlwaysUseBestLog);
     CheckBox.setOnChange(@Self._OnCheckBoxChanged);
   end;
 
+  //The need clockwords requires a larger panel size for the newlines.
+  //So we create it first and lower than the logCheckbox so that we can
+  //draw into the area. If we draw the needClockworks first you can see the panel.
   with needClockworks do
   begin
-    Create(Result);
-    SetName('bh_extraclockworkcb');
-    SetCaption('Craft birdhouses while navigating? (Requires a clockwork in bank)');
     SetLeft(bestLogCheckBox.GetLeft());
-    SetTop(bestLogCheckBox.GetBottom() + TControl.AdjustToDPI(10));
-    BirdHouseRunner.NeedClockworks := BHIncludeGUICraftWhileNav;
-    SetChecked(BirdHouseRunner.NeedClockworks);
-    CheckBox.setOnChange(@Self._OnCheckBoxChanged);
+    SetTop(bestLogCheckBox.GetBottom() - TControl.AdjustToDPI(9));
   end;
 
-  with logTypeCombo do
+  with intervalLabel do
   begin
     Create(Result);
-    SetCaption('Log type to use:');
-    SetStyle(csDropDownList);
-    AddItemArray(['Regular', 'Oak', 'Willow', 'Teak',
-                  'Maple', 'Mahogany', 'Yew', 'Magic tree', 'Redwood']);
-
-    BirdHouseRunner.LogType := BHIncludeGUILogType;
-    SetItemIndex(Ord(BirdHouseRunner.LogType));
-    Combobox.SetOnChange(@Self._LogTypeChanged);
-  end;
-
-  with intervalEdit do
-  begin
-    Create(Result);
-    SetCaption('Run Interval:');
-    SetName('bhi_interval');
-    SetMaxLength(3);
-    SetLeft(logTypeCombo.GetLeft() + TControl.AdjustToDPI(60));
-    SetTop(logTypeCombo.GetTop() + TControl.AdjustToDPI(60));
-    Edit.setOnKeyPress(@Edit.NumberField);
-    Edit.setOnChange(@Self._BHIncludeIntervalEditChanged);
-    BirdHouseRunner.TaskInterval := BHIncludeGUIRunIntervalMinutes * ONE_MINUTE;
-    SetText(ToStr(BHIncludeGUIRunIntervalMinutes));
-  end;
-
-  with bar do
-  begin
-    Create(Result);
-    SetName("bhi_bar_interval");
-    SetMin(0);
-    SetMax(120);
-    SetPosition(BHIncludeGUIRunIntervalMinutes);
-    setFrequency(10);
-    SetWidth(TControl.AdjustToDPI(300));
+    SetCaption("When should the next run start?"
+               + #13#10 + "Runs afterwards will continue every 50 - 60 minutes automatically.");
     SetLeft(logTypeCombo.GetLeft());
-    SetTop(intervalEdit.GetBottom() + TControl.AdjustToDPI(10));
-    SetTooltip('You can adjust the interval time');
-    SetOnChange(@Self._BHIncludeBarOnChange);
+    SetTop(logTypeCombo.GetTop() + TControl.AdjustToDPI(60));
+    SetFontSize(9);
+  end;
+
+  with nowRadio do
+  begin
+    Create(Result);
+    SetName("bh_nowradio");
+    SetLeft(intervalLabel.GetLeft());
+    SetTop(intervalLabel.GetTop() + TControl.AdjustToDPI(33));
+    SetCaption("Do a run now");
+    SetOnClick(@Self._BHIncludeOnRadioChanged);
+    SetFontSize(9);
+  end;
+
+  with laterRadio do
+  begin
+    Create(Result);
+    SetName("bh_laterradio");
+    SetCaption("Do a run later (in about 50 - 60 minutes)");
+    SetLeft(nowRadio.getLeft());
+    SetTop(nowRadio.getTop() + TControl.AdjustToDPI(25));
+    SetOnClick(@Self._BHIncludeOnRadioChanged);
+    SetFontSize(9);
+  end;
+
+  BirdHouseRunner.TaskInterval := BHIncludeGUIRunIntervalMinutes;
+
+  if BHIncludeGUIRunIntervalMinutes > 0 then
+  begin
+    laterRadio.setState(TCheckBoxState.cbChecked);
+    nowRadio.setState(TCheckBoxState.cbUnchecked);
+    BirdHouseRunner.TaskInterval := 50 * ONE_MINUTE;
+  end
+  else
+  begin
+    laterRadio.setState(TCheckBoxState.cbUnchecked);
+    nowRadio.setState(TCheckBoxState.cbChecked);
+    BirdHouseRunner.TaskInterval := 0;
   end;
 end;
