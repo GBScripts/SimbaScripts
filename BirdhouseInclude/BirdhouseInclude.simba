@@ -946,6 +946,7 @@ begin
 
   Self.RSW.ScreenWalk := true;
   Self.RSW.AdaptiveWalk := true;
+  Result := true;
 end;
 
 function TBirdHouseInclude.GetLogForHunterLevel(level : Int32) : ERSLogType;
@@ -1365,11 +1366,9 @@ const
 var
   bestLogCheckBox, needClockworks : TLabeledCheckBox;
   logTypeCombo : TLabeledCombobox;
-  runRadioGroup: TPanel;
   nowRadio, laterRadio: TRadioButton;
-  bar: TTrackBar;
   intervalLabel : TLabel;
-  seedEdit, intervalEdit  : TLabeledEdit;
+  seedEdit : TLabeledEdit;
   fullWidth, w, space, y: Int32;
 
 begin
