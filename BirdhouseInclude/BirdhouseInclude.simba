@@ -100,9 +100,9 @@ const
   SPACE_COLOR : TCTS2Color := CTS2(9029, 1, 0.01, 0.01); //CTS2(1192279, 8, 0.17, 4.86);
 var
   ATPA : T2DPointArray;
-  msC : TPoint := Mainscreen.Center();
+  msC : TPoint := Mainscreen.Center;
 begin
-  SRL.FindColors(Result, SPACE_COLOR, Mainscreen.Bounds());
+  SRL.FindColors(Result, SPACE_COLOR, Mainscreen.Bounds);
   Result := Result.Grow(3);
   ATPA := Result.Cluster(10);
   ATPA := ATPA.SortFrom(msC);
@@ -470,7 +470,7 @@ begin
       continue;
     end;
 
-    birdHouseATPA := birdHouseATPA.SortFrom(MainScreen.Center());
+    birdHouseATPA := birdHouseATPA.SortFrom(MainScreen.Center);
 
     Mouse.Move(birdHouseATPA[0].RandomValue());
 
@@ -612,7 +612,7 @@ begin
       continue;
     end;
 
-    birdHouseATPA := birdHouseATPA.SortFrom(Mainscreen.Center());
+    birdHouseATPA := birdHouseATPA.SortFrom(Mainscreen.Center);
     Mouse.Move(birdhouseATPA[0].RandomValue());
 
     if Self.ConfirmUptext(['mpty']) then
@@ -880,7 +880,7 @@ var
   ropeClicked : Boolean;
 
 begin
-  if SRL.FindColors(tpa, CAVE_FLOOR_COL, Mainscreen.Bounds()) < 1000 then
+  if SRL.FindColors(tpa, CAVE_FLOOR_COL, Mainscreen.Bounds) < 1000 then
   begin
     Writeln("Not in cave!");
     Exit(true);
@@ -888,7 +888,7 @@ begin
 
   for 0 to 5 do
   begin
-    if SRL.FindColors(tpa, ROPE_COL, Mainscreen.Bounds()) < 1 then
+    if SRL.FindColors(tpa, ROPE_COL, Mainscreen.Bounds) < 1 then
     begin
       Antiban.RandomRotate();
       continue;
@@ -911,7 +911,7 @@ begin
   if not ropeClicked then
     Exit(false);
 
-  Result := WaitUntil(SRL.CountColor(CAVE_FLOOR_COL, Mainscreen.Bounds()) < 1000, Random(250, 600), 10000);
+  Result := WaitUntil(SRL.CountColor(CAVE_FLOOR_COL, Mainscreen.Bounds) < 1000, Random(250, 600), 10000);
 end;
 
 function TBirdHouseInclude.HandleNavigating() : Boolean;
